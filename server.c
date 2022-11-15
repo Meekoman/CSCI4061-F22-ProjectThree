@@ -35,7 +35,7 @@ pthread_cond_t free_space = PTHREAD_COND_INITIALIZER;
 request_t req_entries[MAX_QUEUE_LEN];                    //How will you track the requests globally between threads? How will you ensure this is thread safe?
 
 
-//cache_entry_t* ?????;                                  //[Cache]  --> How will you read from, add to, etc. the cache? Likely want this to be global
+cache_entry_t* cache;                                  //[Cache]  --> How will you read from, add to, etc. the cache? Likely want this to be global
 
 /**********************************************************************************/
 
@@ -52,6 +52,12 @@ int getCacheIndex(char *request){
   /* TODO (GET CACHE INDEX)
   *    Description:      return the index if the request is present in the cache otherwise return INVALID
   */
+
+ for(int i = 0; i < cache_len; i++){
+  if(cache[i].request != NULL && strcmp(cache[i].request, request) == 0){
+    return i;
+  }
+ }
   return INVALID;
 }
 
@@ -68,7 +74,11 @@ void deleteCache(){
   /* TODO (CACHE)
   *    Description:      De-allocate/free the cache memory
   */
-
+ for(int i = 0; i < cache_len; i++){
+  free(cache[i].request);
+  free(cache[i].content);
+ }
+free(cache);
 }
 
 // Function to initialize the cache
@@ -76,7 +86,12 @@ void initCache(){
   /* TODO (CACHE)
   *    Description:      Allocate and initialize an array of cache entries of length cache size
   */
-  
+
+ 
+
+ for(int i = 0; i < cache_len; i++){
+  cache[i].len == INVALID;
+ }
 }
 
 /**********************************************************************************/
@@ -86,13 +101,27 @@ void initCache(){
 char* getContentType(char *mybuf) {
   /* TODO (Get Content Type)
   *    Description:      Should return the content type based on the file type in the request
-  *                      (See Section 5 in Project description for more details)
+  *                      (See Section 5 in Project description for more files)
   *    Hint:             Need to check the end of the string passed in to check for .html, .jpg, .gif, etc.
   */
+ char* type;
+ int j;
+ for(j = 0; mybuf[j]; j++);
+ char* extension = mybuf + j;
 
-
-   //TODO remove this line and return the actual content type
-  return NULL;
+ if(strcmp(extension, ".html") == 0 || strcmp(extension, ".htm") == 0) {
+  type = "text/html";
+ }
+ else if(strcmp(extension, ".jpg") == 0) {
+  type = "image/jpeg";
+ }
+ else if(strcmp(extension, ".gif") == 0) {
+  type = "image/gif";
+ }
+ else {
+  type = "text/plain";
+ }
+  return type;
 }
 
 // Function to open and read the file from the disk into the memory. Add necessary arguments as needed
@@ -115,10 +144,31 @@ int readFromDisk(int fd, char *mybuf, void **memory) {
   *                      What do we do with files after we open them?
   */
 
-
-
-  //TODO remove this line and follow directions above
+struct stat file;
+int ret = stat(mybuf + 1, &file);
+if(ret != 0) {
+  perror("stat has failed\n");
   return INVALID;
+}
+
+int fileSize = file.st_size;
+
+if((*memory = malloc(fileSize)) == NULL) {
+  perror("Allocating content into a memory location has failed\n");
+  return INVALID;
+}
+
+int contRead = fread(*memory, fileSize, 1, fp);
+if(contRead != 1) {
+  perror("Reading contents has failed\n");
+  return INVALID;
+}
+
+ if(fclose(fp)) {
+  fprintf(stderr, "ERROR: Fail to close the file.\n");
+  exit(1);
+ }
+  return fileSize;
 }
 
 /**********************************************************************************/
@@ -132,9 +182,11 @@ void * dispatch(void *arg) {
   /* TODO (B.I)
   *    Description:      Get the id as an input argument from arg, set it to ID (tid)
   */
-  long tid = (long)arg;
-  char *fileName[1024];
+  int id = -1;
+  id = *(int*)arg;
   request_t file;
+
+  //fprintf(stderr, "")
 
   while (1) {
     /* TODO (FOR INTERMEDIATE SUBMISSION)
@@ -150,44 +202,50 @@ void * dispatch(void *arg) {
     *    Description:      Accept client connection
     *    Utility Function: int accept_connection(void) //utils.h => Line 24
     */
-    file.fd = accept_connection();
-    if (file.fd < 0) {
-      perror("Invalid file\n");
-      exit(0);
-    }
+    while((file.fd = accept_connection()) < 0);
 
 
     /* TODO (B.III)
     *    Description:      Get request from the client
     *    Utility Function: int get_request(int fd, char *filename); //utils.h => Line 41
     */
-    file.request = *fileName;
-    get_request(file.fd, file.request); 
-    if ( file.request != 0) {
-      perror("Invalid Request\n");
+    char fileName[BUFF_SIZE];
+    int requ = get_request(file.fd, fileName);
+    if(requ != 0){
+      printf("ERROR: Failed to get request.\n");
       // TODO: Skip return_request or return_error for connection
     }
 
 
-    //fprintf(stderr, "Dispatcher Received Request: fd[%d] request[%s]\n", tempreq.fd, tempreq.request);
+    fprintf(stderr, "Dispatcher Received Request: fd[%d] request[%s]\n", file.fd, file.request);
     /* TODO (B.IV)
     *    Description:      Add the request into the queue
     */
 
         //(1) Copy the filename from get_request into allocated memory to put on request queue
+      file.request = malloc(strlen(fileName) + 1);
+      strcpy(file.request, fileName);
         
 
         //(2) Request thread safe access to the request queue
-        pthread_mutex_lock(&lock);
+        if (pthread_mutex_lock(&lock) != 0 ){
+          perror("locking has failed\n");
+        }
         
         //(3) Check for a full queue... wait for an empty one which is signaled from req_queue_notfull
 
+
+
         //(4) Insert the request into the queue
+
         
         //(5) Update the queue index in a circular fashion
 
+
         //(6) Release the lock on the request queue and signal that the queue is not empty anymore
-        pthread_mutex_unlock(&lock);
+        if(pthread_mutex_unlock(&lock) != 0) {
+          perror("unlocking has failed\n");
+        }
 
  }
 
