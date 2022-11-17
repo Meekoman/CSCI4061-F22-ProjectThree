@@ -194,8 +194,8 @@ void * dispatch(void *arg) {
   /* TODO (B.I)
   *    Description:      Get the id as an input argument from arg, set it to ID (tid)
   */
-  int id = -1;
-  id = *(int*)arg;
+  int index = -1;
+  index = * (int*)arg;
   request_t file;
 
   //fprintf(stderr, "")
@@ -235,7 +235,7 @@ void * dispatch(void *arg) {
 
         //(1) Copy the filename from get_request into allocated memory to put on request queue
       file.request = malloc(strlen(fileName) + 1);
-      strcpy(file.request, fileName);
+      strncpy(file.request, fileName, BUFF_SIZE);
         
 
         //(2) Request thread safe access to the request queue
@@ -288,8 +288,8 @@ void * worker(void *arg) {
   /* TODO (C.I)
   *    Description:      Get the id as an input argument from arg, set it to ID
   */
-  int id = -1;
-  id = *(int*)arg;
+  int index = -1;
+  index = * (int*)arg;
 
   while (1) {
     /* TODO (C.II)
@@ -304,10 +304,13 @@ void * worker(void *arg) {
       pthread_cond_wait(&queue_not_empty, &queue_lock);
     }
     //(3) Now that you have the lock AND the queue is not empty, read from the request queue
-    strncpy(mybuf, req_entries[curequest-1].request, BUFF_SIZE);
+    curequest--; // cureqest always points to open slot above latest filled one. decrementing it will make it point to the full one. 
+    fd = req_entries[curequest].fd;
+    strncpy(mybuf, req_entries[curequest].request, BUFF_SIZE);
 
     //(4) Update the request queue remove index in a circular fashion
-    curequest--;
+    free(req_entries[curequest].request); // this was malloc'd in the dispatch. need to free at some point. 
+
 
     //(5) Check for a path with only a "/" if that is the case add index.html to it
     if (strcmp(mybuf, "/")) {
@@ -427,8 +430,7 @@ int main(int argc, char **argv) {
   *    Description:      Open log file
   *    Hint:             Use Global "File* logfile", use "web_server_log" as the name, what open flags do you want?
   */
-  FILE *logfile;
-	logfile = fopen(LOG_FILE_NAME, "w"); 
+	logfile = fopen(LOG_FILE_NAME, "a"); 
 
 	if (logfile == NULL) {
     perror("Error opening server log\n");
@@ -465,18 +467,16 @@ int main(int argc, char **argv) {
   */
   // Create worker thread pool
   for(int i = 0; i < num_worker; i++) {
-    if(pthread_create(&(worker_thread[i]), NULL, worker, NULL)){
+    threadID[i] = i; 
+    if(pthread_create(&(worker_thread[i]), NULL, worker, (void *) &threadID[i] )){
       printf("Thread %d failed to create\n", i);
       continue;
     }
-
-    //Storing thread ID
-    threadID[i] = pthread_self();
   }
 
   // Create dispatch thread pool
   for (int i = 0; i < num_dispatcher; i++) {
-    if(pthread_create(&(dispatcher_thread[i]), NULL, dispatch, NULL)) 
+    if(pthread_create(&(dispatcher_thread[i]), NULL, dispatch, (void *) &threadID[i] )) 
       printf("Thread %d failed to create\n", i);
 
     //Storing thread ID
