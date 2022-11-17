@@ -17,12 +17,11 @@ FILE *logfile;                                                  //Global file po
 
 /* ************************ Global Hints **********************************/
 
-//int cache[];                                  //[Cache]           --> When using cache, how will you track which cache entry to evict from array?
+int cacheIndex = 0;                             //[Cache]           --> When using cache, how will you track which cache entry to evict from array?
 int workerIndex = 0;                            //[worker()]        --> How will you track which index in the request queue to remove next?
 int dispatcherIndex = 0;                        //[dispatcher()]    --> How will you know where to insert the next request received into the request queue?
 int curequest= 0;                               //[multiple funct]  --> How will you update and utilize the current number of requests in the request queue?
-// use currequest to track # of entries in queue
-// FIFO stack, req_entries[curequest] points to top of stack
+
 
 pthread_t worker_thread[MAX_THREADS];           //[multiple funct]  --> How will you track the p_thread's that you create for workers?
 pthread_t dispatcher_thread[MAX_THREADS];       //[multiple funct]  --> How will you track the p_thread's that you create for dispatchers?
@@ -55,7 +54,7 @@ int getCacheIndex(char *request){
   *    Description:      return the index if the request is present in the cache otherwise return INVALID
   */
 
- for(int i = 0; i < cache_len; i++){
+ for(int i = 0; i < cache_len; i++) {
   if(cache[i].request != NULL && strcmp(cache[i].request, request) == 0){
     return i;
   }
@@ -70,6 +69,34 @@ void addIntoCache(char *mybuf, char *memory , int memory_size){
   *                      Make sure to allocate/free memory when adding or replacing cache entries
   */
 
+ cache[cacheIndex].len = memory_size;
+
+ if(cache[cacheIndex].request != NULL) {
+  free(cache[cacheIndex].request);
+  cache[cacheIndex].request = NULL;
+ }
+
+if((cache[cacheIndex].request = malloc(strlen(mybuf + 1))) == NULL) {
+  perror("Allocation has failed\n");
+  return;
+}
+strcpy(cache[cacheIndex].request, mybuf);
+
+if(cache[cacheIndex].content != NULL){
+  free(cache[cacheIndex].content);
+  cache[cacheIndex].content = NULL;
+}
+
+if((cache[cacheIndex].content = malloc(memory_size)) == NULL) {
+  perror("Allocation has failed\n");
+  return;
+}
+memcpy(cache[cacheIndex].content, memory, memory_size);
+
+cacheIndex++;
+cacheIndex %= cache_len;
+
+return;
 }
 
 // Function to clear the memory allocated to the cache
@@ -77,7 +104,8 @@ void deleteCache(){
   /* TODO (CACHE)
   *    Description:      De-allocate/free the cache memory
   */
- for(int i = 0; i < cache_len; i++){
+
+ for(int i = 0; i < cache_len; i++) {
   free(cache[i].request);
   free(cache[i].content);
  }
@@ -90,10 +118,17 @@ void initCache(){
   *    Description:      Allocate and initialize an array of cache entries of length cache size
   */
 
- 
+ cache = malloc(cache_len * sizeof(cache_entry_t));
 
- for(int i = 0; i < cache_len; i++){
+ if(cache == NULL) {
+  perror("Allocating cache has failed\n");
+  return;
+ }
+
+ for(int i = 0; i < cache_len; i++) {
   cache[i].len == INVALID;
+  cache[i].content = NULL;
+  cache[i].request = NULL;
  }
 }
 
@@ -327,8 +362,7 @@ void * worker(void *arg) {
     *    Local Function:   int readFromDisk(//necessary arguments//);
     *                      int getCacheIndex(char *request);  
     *                      void addIntoCache(char *mybuf, char *memory , int memory_size);  
-    */
-    
+    */    
 
     /* TODO (C.IV)
     *    Description:      Log the request into the file and terminal
