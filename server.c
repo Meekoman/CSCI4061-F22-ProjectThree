@@ -21,7 +21,8 @@ FILE *logfile;                                                  //Global file po
 int workerIndex = 0;                            //[worker()]        --> How will you track which index in the request queue to remove next?
 int dispatcherIndex = 0;                        //[dispatcher()]    --> How will you know where to insert the next request received into the request queue?
 int curequest= 0;                               //[multiple funct]  --> How will you update and utilize the current number of requests in the request queue?
-
+// use currequest to track # of entries in queue
+// FIFO stack, req_entries[curequest] points to top of stack
 
 pthread_t worker_thread[MAX_THREADS];           //[multiple funct]  --> How will you track the p_thread's that you create for workers?
 pthread_t dispatcher_thread[MAX_THREADS];       //[multiple funct]  --> How will you track the p_thread's that you create for dispatchers?
@@ -67,6 +68,7 @@ void addIntoCache(char *mybuf, char *memory , int memory_size){
   *    Description:      It should add the request at an index according to the cache replacement policy
   *                      Make sure to allocate/free memory when adding or replacing cache entries
   */
+
 }
 
 // Function to clear the memory allocated to the cache
@@ -105,8 +107,17 @@ char* getContentType(char *mybuf) {
   *    Hint:             Need to check the end of the string passed in to check for .html, .jpg, .gif, etc.
   */
  char* type;
- int j;
- for(j = 0; mybuf[j]; j++);
+ int j = 0;
+ for(j = 0; j < BUFF_SIZE; j++){
+  if (mybuf[j] == '.') {
+    type = &mybuf[j];
+    break;
+  }
+  else {
+    continue;
+  }
+ }
+
  char* extension = mybuf + j;
 
  if(strcmp(extension, ".html") == 0 || strcmp(extension, ".htm") == 0) {
@@ -301,7 +312,7 @@ void * worker(void *arg) {
     *                      int getCacheIndex(char *request);  
     *                      void addIntoCache(char *mybuf, char *memory , int memory_size);  
     */
-
+    
 
     /* TODO (C.IV)
     *    Description:      Log the request into the file and terminal
@@ -404,7 +415,7 @@ int main(int argc, char **argv) {
   *    Hint:             Use Global "File* logfile", use "web_server_log" as the name, what open flags do you want?
   */
   FILE *logfile;
-	logfile = fopen(LOG_FILE_NAME, "w+"); 
+	logfile = fopen(LOG_FILE_NAME, "w"); 
 
 	if (logfile == NULL) {
     perror("Error opening server log\n");
@@ -474,5 +485,6 @@ int main(int argc, char **argv) {
     }
   }
   fprintf(stderr, "SERVER DONE \n");  // will never be reached in SOLUTION
+  fclose(logfile);
 }
 
