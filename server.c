@@ -29,10 +29,11 @@ pthread_t dispatcher_thread[MAX_THREADS];       //[multiple funct]  --> How will
 int threadID[MAX_THREADS];                      //[multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
 
 
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;        //What kind of locks will you need to make everything thread safe? [Hint you need multiple]
+pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;        //What kind of locks will you need to make everything thread safe? [Hint you need multiple]
 pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t some_content = PTHREAD_COND_INITIALIZER;  //What kind of CVs will you need  (i.e. queue full, queue empty) [Hint you need multiple]
-pthread_cond_t free_space = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t cache_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t queue_not_full = PTHREAD_COND_INITIALIZER;  //What kind of CVs will you need  (i.e. queue full, queue empty) [Hint you need multiple]
+pthread_cond_t queue_not_empty = PTHREAD_COND_INITIALIZER;
 request_t req_entries[MAX_QUEUE_LEN];                    //How will you track the requests globally between threads? How will you ensure this is thread safe?
 
 
@@ -221,10 +222,9 @@ void * dispatch(void *arg) {
     *    Utility Function: int get_request(int fd, char *filename); //utils.h => Line 41
     */
     char fileName[BUFF_SIZE];
-    int requ = get_request(file.fd, fileName);
-    if(requ != 0){
+    if((get_request(file.fd, fileName))!= 0){
       printf("ERROR: Failed to get request.\n");
-      // TODO: Skip return_request or return_error for connection
+      continue;
     }
 
 
@@ -239,22 +239,24 @@ void * dispatch(void *arg) {
         
 
         //(2) Request thread safe access to the request queue
-        if (pthread_mutex_lock(&lock) != 0 ){
+        if (pthread_mutex_lock(&queue_lock) != 0 ){
           perror("locking has failed\n");
         }
         
-        //(3) Check for a full queue... wait for an empty one which is signaled from req_queue_notfull
-
+        //(3) Check for a full queue... wait for an empty one which is signaled from queue_not_full
+        while (curequest >= MAX_QUEUE_LEN)
+          pthread_cond_wait(&queue_not_full, &queue_lock);
 
 
         //(4) Insert the request into the queue
-
+        req_entries[curequest] = file;
         
         //(5) Update the queue index in a circular fashion
-
+        curequest++;
 
         //(6) Release the lock on the request queue and signal that the queue is not empty anymore
-        if(pthread_mutex_unlock(&lock) != 0) {
+        pthread_cond_signal(&queue_not_empty);
+        if(pthread_mutex_unlock(&queue_lock) != 0) {
           perror("unlocking has failed\n");
         }
 
@@ -283,28 +285,39 @@ void * worker(void *arg) {
 
   #pragma GCC diagnostic pop                              //TODO --> Remove these before submission and fix warnings
 
-
-
   /* TODO (C.I)
   *    Description:      Get the id as an input argument from arg, set it to ID
   */
-
+  int id = -1;
+  id = *(int*)arg;
 
   while (1) {
     /* TODO (C.II)
     *    Description:      Get the request from the queue and do as follows
     */
-          //(1) Request thread safe access to the request queue by getting the req_queue_mutex lock
+    //(1) Request thread safe access to the request queue by getting the req_queue_mutex lock
+    if (pthread_mutex_lock(&queue_lock) != 0 ){
+      perror("locking has failed\n");
+    }
+    //(2) While the request queue is empty conditionally wait for the request queue lock once the not empty signal is raised
+    if (curequest <= 0) {
+      pthread_cond_wait(&queue_not_empty, &queue_lock);
+    }
+    //(3) Now that you have the lock AND the queue is not empty, read from the request queue
+    strncpy(mybuf, req_entries[curequest-1].request, BUFF_SIZE);
 
-          //(2) While the request queue is empty conditionally wait for the request queue lock once the not empty signal is raised
+    //(4) Update the request queue remove index in a circular fashion
+    curequest--;
 
-          //(3) Now that you have the lock AND the queue is not empty, read from the request queue
+    //(5) Check for a path with only a "/" if that is the case add index.html to it
+    if (strcmp(mybuf, "/")) {
+      strcat(mybuf, "index.html");
+    }
 
-          //(4) Update the request queue remove index in a circular fashion
+    //(6) Fire the request queue not full signal to indicate the queue has a slot opened up and release the request queue lock
+    pthread_cond_signal(&queue_not_full);
+    pthread_mutex_unlock(&queue_lock);
 
-          //(5) Check for a path with only a "/" if that is the case add index.html to it
-
-          //(6) Fire the request queue not full signal to indicate the queue has a slot opened up and release the request queue lock
 
     /* TODO (C.III)
     *    Description:      Get the data from the disk or the cache 
@@ -452,8 +465,10 @@ int main(int argc, char **argv) {
   */
   // Create worker thread pool
   for(int i = 0; i < num_worker; i++) {
-    if(pthread_create(&(worker_thread[i]), NULL, worker, NULL))
+    if(pthread_create(&(worker_thread[i]), NULL, worker, NULL)){
       printf("Thread %d failed to create\n", i);
+      continue;
+    }
 
     //Storing thread ID
     threadID[i] = pthread_self();
