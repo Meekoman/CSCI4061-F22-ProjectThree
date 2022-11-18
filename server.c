@@ -227,8 +227,7 @@ void * dispatch(void *arg) {
       continue;
     }
 
-
-    fprintf(stderr, "Dispatcher Received Request: fd[%d] request[%s]\n", file.fd, file.request);
+    fprintf(stderr, "Dispatcher Received Request: fd[%d] request[%s]\n", file.fd, fileName);
     /* TODO (B.IV)
     *    Description:      Add the request into the queue
     */
