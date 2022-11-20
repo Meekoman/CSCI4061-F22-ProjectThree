@@ -5,6 +5,8 @@
  */
 
 #include "server.h"
+#include <sys/stat.h>
+
 #define PERM 0644
 
 //Global Variables [Values Set in main()]
@@ -343,7 +345,7 @@ void * worker(void *arg) {
     strncpy(mybuf, req_entries[curequest].request, BUFF_SIZE);
 
     //(4) Update the request queue remove index in a circular fashion
-    free(req_entries[curequest].request); // this was malloc'd in the dispatch. need to free at some point. 
+    free(req_entries[curequest].request); // this was malloc'd in the dispatch. need to free now that it's being used.  
 
 
     //(5) Check for a path with only a "/" if that is the case add index.html to it
@@ -358,10 +360,43 @@ void * worker(void *arg) {
 
     /* TODO (C.III)
     *    Description:      Get the data from the disk or the cache 
-    *    Local Function:   int readFromDisk(//necessary arguments//);
+    *    Local Function:   int readFromDisk(int fd, char *mybuf, void **memory);
     *                      int getCacheIndex(char *request);  
     *                      void addIntoCache(char *mybuf, char *memory , int memory_size);  
     */    
+    // at this point requested file is saved in mybuf
+    // probably need to chdir to 
+
+    pthread_mutex_lock(&cache_lock); 
+    int cache_index = getCacheIndex(mybuf);
+    if (cache_index == INVALID) {
+      pthread_mutex_unlock(&cache_lock);
+      int requestfd = open(mybuf, O_RDONLY);
+      // TODO: malloc memory for cache to buffer
+      struct stat file;
+      fstat(requestfd, &file);
+
+
+      void *cache_memory = malloc(file.st_size);
+      // for (int i = 0; i < file.st_size; i++) {
+      //     file_buffer[i] = '/0'; 
+      // }
+      // may or may not need to initialize
+
+      pthread_mutex_lock(&cache_lock);
+      if ((readFromDisk(requestfd, mybuf, &memory)== INVALID)) {
+        perror("failed to read from disk");
+        return NULL;
+      }
+    
+      
+      addIntoCache(memory, memory, file.st_size);
+      cache_index = getCacheIndex(mybuf);
+    }
+    
+    pthread_mutex_unlock(&cache_lock);
+    
+   
 
     /* TODO (C.IV)
     *    Description:      Log the request into the file and terminal
@@ -369,7 +404,7 @@ void * worker(void *arg) {
     *    Hint:             Call LogPrettyPrint with to_write = NULL which will print to the terminal
     *                      You will need to lock and unlock the logfile to write to it in a thread safe manor
     */
-
+    // LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, int file_descriptor, char* request_str, int num_bytes_or_error, bool cache_hit);
 
     /* TODO (C.V)
     *    Description:      Get the content type and return the result or error
@@ -466,6 +501,7 @@ int main(int argc, char **argv) {
 	logfile = fopen(LOG_FILE_NAME, "a"); 
 
 	if (logfile == NULL) {
+
     perror("Error opening server log\n");
  		exit(-1);
   }
