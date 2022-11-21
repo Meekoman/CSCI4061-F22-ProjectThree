@@ -50,7 +50,7 @@ void    addIntoCache(char *mybuf, char *memory , int memory_size);
 void    deleteCache();
 void    initCache();
 char*   getContentType(char * mybuf);
-int     readFromDisk(/*TODO necessary arguments*/);
+int     readFromDisk(int fd, char *mybuf, void **memory);
 void *  dispatch(void *arg);
 void *  worker(void *arg);
 
