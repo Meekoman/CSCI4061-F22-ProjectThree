@@ -56,12 +56,12 @@ int getCacheIndex(char *request){
   *    Description:      return the index if the request is present in the cache otherwise return INVALID
   */
 
- for(int i = 0; i < cache_len; i++) {
-  if(cache[i].request != NULL && strcmp(cache[i].request, request) == 0){
-    return i;
+  for(int i = 0; i < cache_len; i++) {
+    if(cache[i].request != NULL && strcmp(cache[i].request, request) == 0){
+      return i;
+    }
   }
- }
-  return INVALID;
+    return INVALID;
 }
 
 // Function to add the request and its file content into the cache
@@ -71,34 +71,34 @@ void addIntoCache(char *mybuf, char *memory , int memory_size){
   *                      Make sure to allocate/free memory when adding or replacing cache entries
   */
 
- cache[cacheIndex].len = memory_size;
+  cache[cacheIndex].len = memory_size;
 
- if(cache[cacheIndex].request != NULL) {
-  free(cache[cacheIndex].request);
-  cache[cacheIndex].request = NULL;
- }
+  if(cache[cacheIndex].request != NULL) {
+    free(cache[cacheIndex].request);
+    cache[cacheIndex].request = NULL;
+  }
 
-if((cache[cacheIndex].request = malloc(strlen(mybuf + 1))) == NULL) {
-  perror("Allocation has failed\n");
+  if((cache[cacheIndex].request = malloc(strlen(mybuf + 1))) == NULL) {
+    perror("Allocation has failed\n");
+    return;
+  }
+  strcpy(cache[cacheIndex].request, mybuf);
+
+  if(cache[cacheIndex].content != NULL){
+    free(cache[cacheIndex].content);
+    cache[cacheIndex].content = NULL;
+  }
+
+  if((cache[cacheIndex].content = malloc(memory_size)) == NULL) {
+    perror("Allocation has failed\n");
+    return;
+  }
+  memcpy(cache[cacheIndex].content, memory, memory_size);
+
+  cacheIndex++;
+  cacheIndex %= cache_len;
+
   return;
-}
-strcpy(cache[cacheIndex].request, mybuf);
-
-if(cache[cacheIndex].content != NULL){
-  free(cache[cacheIndex].content);
-  cache[cacheIndex].content = NULL;
-}
-
-if((cache[cacheIndex].content = malloc(memory_size)) == NULL) {
-  perror("Allocation has failed\n");
-  return;
-}
-memcpy(cache[cacheIndex].content, memory, memory_size);
-
-cacheIndex++;
-cacheIndex %= cache_len;
-
-return;
 }
 
 // Function to clear the memory allocated to the cache
@@ -107,11 +107,11 @@ void deleteCache(){
   *    Description:      De-allocate/free the cache memory
   */
 
- for(int i = 0; i < cache_len; i++) {
-  free(cache[i].request);
-  free(cache[i].content);
- }
-free(cache);
+  for(int i = 0; i < cache_len; i++) {
+    free(cache[i].request);
+    free(cache[i].content);
+  }
+  free(cache);
 }
 
 // Function to initialize the cache
@@ -119,19 +119,18 @@ void initCache(){
   /* TODO (CACHE)
   *    Description:      Allocate and initialize an array of cache entries of length cache size
   */
+  cache = malloc(cache_len * sizeof(cache_entry_t));
 
- cache = malloc(cache_len * sizeof(cache_entry_t));
+  if(cache == NULL) {
+    perror("Allocating cache has failed\n");
+    return;
+  }
 
- if(cache == NULL) {
-  perror("Allocating cache has failed\n");
-  return;
- }
-
- for(int i = 0; i < cache_len; i++) {
-  cache[i].len == INVALID;
-  cache[i].content = NULL;
-  cache[i].request = NULL;
- }
+  for(int i = 0; i < cache_len; i++) {
+    cache[i].len == INVALID;
+    cache[i].content = NULL;
+    cache[i].request = NULL;
+  }
 }
 
 /**********************************************************************************/
@@ -144,80 +143,77 @@ char* getContentType(char *mybuf) {
   *                      (See Section 5 in Project description for more files)
   *    Hint:             Need to check the end of the string passed in to check for .html, .jpg, .gif, etc.
   */
- char* type;
- int j = 0;
- for(j = 0; j < BUFF_SIZE; j++){
-  if (mybuf[j] == '.') {
-    type = &mybuf[j];
-    break;
+  char* type;
+  int j = 0;
+  for(j = 0; j < BUFF_SIZE; j++){
+    if (mybuf[j] == '.') {
+      type = &mybuf[j];
+      break;
+    }
+    else {
+      continue;
+    }
+  }
+
+  char* extension = mybuf + j;
+
+  if(strcmp(extension, ".html") == 0 || strcmp(extension, ".htm") == 0) {
+    type = "text/html";
+  }
+  else if(strcmp(extension, ".jpg") == 0) {
+    type = "image/jpeg";
+  }
+  else if(strcmp(extension, ".gif") == 0) {
+    type = "image/gif";
   }
   else {
-    continue;
+    type = "text/plain";
   }
- }
-
- char* extension = mybuf + j;
-
- if(strcmp(extension, ".html") == 0 || strcmp(extension, ".htm") == 0) {
-  type = "text/html";
- }
- else if(strcmp(extension, ".jpg") == 0) {
-  type = "image/jpeg";
- }
- else if(strcmp(extension, ".gif") == 0) {
-  type = "image/gif";
- }
- else {
-  type = "text/plain";
- }
-  return type;
+    return type;
 }
 
 // Function to open and read the file from the disk into the memory. Add necessary arguments as needed
 // Hint: caller must malloc the memory space
 int readFromDisk(int fd, char *mybuf, void **memory) {
   //    Description: Try and open requested file, return INVALID if you cannot meaning error
-
-
   FILE *fp;
   if((fp = fopen(mybuf, "r")) == NULL){
-     fprintf (stderr, "ERROR: Fail to open the file.\n");
+      fprintf (stderr, "ERROR: Fail to open the file.\n");
     return INVALID;
   }
 
-   fprintf (stderr,"The requested file path is: %s\n", mybuf);
-  
+  fprintf (stderr,"The requested file path is: %s\n", mybuf);
+
   /* TODO 
   *    Description:      Find the size of the file you need to read, read all of the contents into a memory location and return the file size
   *    Hint:             Using fstat or fseek could be helpful here
   *                      What do we do with files after we open them?
   */
+  struct stat file;
+  int ret = stat(mybuf + 1, &file);
+  if(ret != 0) {
+    perror("stat has failed\n");
+    return INVALID;
+  }
 
-struct stat file;
-int ret = stat(mybuf + 1, &file);
-if(ret != 0) {
-  perror("stat has failed\n");
-  return INVALID;
-}
+  int fileSize = file.st_size;
 
-int fileSize = file.st_size;
+  if((*memory = malloc(fileSize)) == NULL) {
+    perror("Allocating content into a memory location has failed\n");
+    return INVALID;
+  }
 
-if((*memory = malloc(fileSize)) == NULL) {
-  perror("Allocating content into a memory location has failed\n");
-  return INVALID;
-}
+  int contRead = fread(*memory, fileSize, 1, fp);
+  if(contRead != 1) {
+    perror("Reading contents has failed\n");
+    return INVALID;
+  }
 
-int contRead = fread(*memory, fileSize, 1, fp);
-if(contRead != 1) {
-  perror("Reading contents has failed\n");
-  return INVALID;
-}
-
- if(fclose(fp)) {
-  fprintf(stderr, "ERROR: Fail to close the file.\n");
-  exit(1);
- }
-  return fileSize;
+  if(fclose(fp)) {
+    fprintf(stderr, "ERROR: Fail to close the file.\n");
+    exit(1);
+  }
+    return fileSize;
 }
 
 /**********************************************************************************/
@@ -259,7 +255,7 @@ void * dispatch(void *arg) {
     *    Utility Function: int get_request(int fd, char *filename); //utils.h => Line 41
     */
     char fileName[BUFF_SIZE];
-    if((get_request(file.fd, fileName))!= 0){
+    if((get_request(file.fd, fileName)) != 0){
       printf("ERROR: Failed to get request.\n");
       continue;
     }
@@ -269,33 +265,32 @@ void * dispatch(void *arg) {
     *    Description:      Add the request into the queue
     */
 
-        //(1) Copy the filename from get_request into allocated memory to put on request queue
-      file.request = malloc(strlen(fileName) + 1);
-      strncpy(file.request, fileName, BUFF_SIZE);
-        
+    //(1) Copy the filename from get_request into allocated memory to put on request queue
+    file.request = malloc(strlen(fileName) + 1);
+    strncpy(file.request, fileName, BUFF_SIZE);
+      
 
-        //(2) Request thread safe access to the request queue
-        if (pthread_mutex_lock(&queue_lock) != 0 ){
-          perror("locking has failed\n");
-        }
-        
-        //(3) Check for a full queue... wait for an empty one which is signaled from queue_not_full
-        while (curequest >= MAX_QUEUE_LEN)
-          pthread_cond_wait(&queue_not_full, &queue_lock);
+    //(2) Request thread safe access to the request queue
+    if (pthread_mutex_lock(&queue_lock) != 0 ){
+      perror("locking has failed\n");
+    }
+    
+    //(3) Check for a full queue... wait for an empty one which is signaled from queue_not_full
+    while (curequest >= MAX_QUEUE_LEN)
+      pthread_cond_wait(&queue_not_full, &queue_lock);
 
 
-        //(4) Insert the request into the queue
-        req_entries[curequest] = file;
-        
-        //(5) Update the queue index in a circular fashion
-        curequest++;
+    //(4) Insert the request into the queue
+    req_entries[curequest] = file;
+    
+    //(5) Update the queue index in a circular fashion
+    curequest++;
 
-        //(6) Release the lock on the request queue and signal that the queue is not empty anymore
-        pthread_cond_signal(&queue_not_empty);
-        if(pthread_mutex_unlock(&queue_lock) != 0) {
-          perror("unlocking has failed\n");
-        }
-
+    //(6) Release the lock on the request queue and signal that the queue is not empty anymore
+    pthread_cond_signal(&queue_not_empty);
+    if(pthread_mutex_unlock(&queue_lock) != 0) {
+      perror("unlocking has failed\n");
+    }
  }
 
   return NULL;
@@ -335,18 +330,19 @@ void * worker(void *arg) {
     if (pthread_mutex_lock(&queue_lock) != 0 ){
       perror("locking has failed\n");
     }
+
     //(2) While the request queue is empty conditionally wait for the request queue lock once the not empty signal is raised
     if (curequest <= 0) {
       pthread_cond_wait(&queue_not_empty, &queue_lock);
     }
+
     //(3) Now that you have the lock AND the queue is not empty, read from the request queue
-    curequest--; // cureqest always points to open slot above latest filled one. decrementing it will make it point to the full one. 
+    curequest--; // curequest always points to open slot above latest filled one. decrementing it will make it point to the full one. 
     fd = req_entries[curequest].fd;
     strncpy(mybuf, req_entries[curequest].request, BUFF_SIZE);
 
     //(4) Update the request queue remove index in a circular fashion
     free(req_entries[curequest].request); // this was malloc'd in the dispatch. need to free now that it's being used.  
-
 
     //(5) Check for a path with only a "/" if that is the case add index.html to it
     if (strcmp(mybuf, "/")) {
@@ -367,14 +363,31 @@ void * worker(void *arg) {
     // at this point requested file is saved in mybuf
     // probably need to chdir to 
 
-    pthread_mutex_lock(&cache_lock); 
+
+    // 1) Look up the request in the cache.
+    // 2a) If the request is in the cache (Cache HIT), 
+    //       -get the result from the cache,
+    //       -return result to the user. 
+    // 2b) If the request is not in the cache (Cache MISS), 
+    //       -get the result from disk as usual, 
+    //       -put the entry in the cache,
+    //       -return result to the user.
+
+
+    pthread_mutex_lock(&cache_lock);
     int cache_index = getCacheIndex(mybuf);
+
+    int requestfd = open(mybuf, O_RDONLY);
+    struct stat file;
+    fstat(requestfd, &file);
+    void *cacheToBuffer = malloc(file.st_size);
+
+    //If request in not in cache, get from disk
     if (cache_index == INVALID) {
+      cache_hit = false;
       pthread_mutex_unlock(&cache_lock);
-      int requestfd = open(mybuf, O_RDONLY);
       // TODO: malloc memory for cache to buffer
-      struct stat file;
-      fstat(requestfd, &file);
+
 
 
       void *cache_memory = malloc(file.st_size);
@@ -384,40 +397,67 @@ void * worker(void *arg) {
       // may or may not need to initialize
 
       pthread_mutex_lock(&cache_lock);
-      if ((readFromDisk(requestfd, mybuf, &memory)== INVALID)) {
+      if ((readFromDisk(requestfd, mybuf, &memory) == INVALID)) {
         perror("failed to read from disk");
         return NULL;
       }
     
-      
       addIntoCache(memory, memory, file.st_size);
-      cache_index = getCacheIndex(mybuf);
+
+      pthread_mutex_unlock(&cache_lock);
     }
-    
-    pthread_mutex_unlock(&cache_lock);
+    //Request is in cache, place in buffer
+    else {
+      cache_hit = true;
+
+      //place request into buffer
+      memcpy(cacheToBuffer, mybuf, file.st_size);
+
+      pthread_mutex_unlock(&cache_lock);
+    }
+
+
     
    
-
     /* TODO (C.IV)
     *    Description:      Log the request into the file and terminal
     *    Utility Function: LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, int file_descriptor, char* request_str, int num_bytes_or_error, bool cache_hit);
     *    Hint:             Call LogPrettyPrint with to_write = NULL which will print to the terminal
     *                      You will need to lock and unlock the logfile to write to it in a thread safe manor
     */
-    // LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, int file_descriptor, char* request_str, int num_bytes_or_error, bool cache_hit);
+    pthread_mutex_lock(&log_lock);
+
+    char fileName[BUFF_SIZE];
+    int currentThreadID = threadID[index];
+    int getRequest;
+    int fileSize = 0;
+    
+    if ((getRequest = get_request(fd, fileName)) != 0) {
+      fprintf(stderr, "Error getting request\n");
+    }
+    else {
+      fileSize = file.st_size;
+    }
+
+    // To file
+    LogPrettyPrint(logfile, currentThreadID, getRequest, fd, fileName, fileSize, cache_hit);
+    // To terminal
+    LogPrettyPrint(NULL, currentThreadID, getRequest, fd, fileName, fileSize, cache_hit);
+
+    pthread_mutex_unlock(&log_lock);
+
 
     /* TODO (C.V)
     *    Description:      Get the content type and return the result or error
     *    Utility Function: (1) int return_result(int fd, char *content_type, char *buf, int numbytes); //look in utils.h 
     *                      (2) int return_error(int fd, char *buf); //look in utils.h 
     */
+    if (return_result(fd, getContentType(mybuf), mybuf, file.st_size) != 0)
+      return_error(fd, mybuf);
+
+    free(cacheToBuffer);
   }
-
-
-
-
   return NULL;
-
 }
 
 /**********************************************************************************/
@@ -511,7 +551,8 @@ int main(int argc, char **argv) {
   *    Description:      Change the current working directory to server root directory
   *    Hint:             Check for error!
   */
-  chdir(path);
+  if (chdir(path) != 0)
+    fprintf(stderr, "Error changing directoreis\n");
 
 
   /* TODO (A.V)
