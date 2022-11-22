@@ -261,6 +261,7 @@ void * dispatch(void *arg) {
       printf("ERROR: Failed to get request.\n");
       continue;
     }
+    fprintf(stderr, "fileName: %s\n", fileName);
 
     fprintf(stderr, "Dispatcher Received Request: fd[%d] request[%s]\n", file.fd, fileName);
     /* TODO (B.IV)
@@ -420,7 +421,7 @@ void * worker(void *arg) {
     *    Description:      Log the request into the file and terminal
     *    Utility Function: LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, int file_descriptor, char* request_str, int num_bytes_or_error, bool cache_hit);
     *    Hint:             Call LogPrettyPrint with to_write = NULL which will print to the terminal
-    *                      You will need to lock and unlock the logfile to write to it in a thread safe manor
+    *                      You will need fileNameto lock and unlock the logfile to write to it in a thread safe manor
     */
     pthread_mutex_lock(&log_lock);
   
@@ -483,7 +484,7 @@ int main(int argc, char **argv) {
   cache_len  = atoi(argv[6]);
 
   /* TODO (A.II)
-  *    Description:     Perform error checks on the input arguments
+  *    Description:     Perform error checName: /image/jpg/29.jpgks on the input arguments
   *    Hints:           (1) port: {Should be >= MIN_PORT and <= MAX_PORT} | (2) path: {Consider checking if path exists (or will be caught later)}
   *                     (3) num_dispatcher: {Should be >= 1 and <= MAX_THREADS} | (4) num_workers: {Should be >= 1 and <= MAX_THREADS}
   *                     (5) queue_length: {Should be >= 1 and <= MAX_QUEUE_LEN} | (6) cache_size: {Should be >= 1 and <= MAX_CE}
@@ -544,7 +545,6 @@ int main(int argc, char **argv) {
   */
   if (chdir(path) != 0) {
     fprintf(stderr, "Error changing directoreis\n");
-
   }
 
   /* TODO (A.V)
