@@ -56,7 +56,7 @@ int getCacheIndex(char *request){
   */
 
   for(int i = 0; i < cache_len; i++) {
-    if(cache[i].request != NULL && strcmp(cache[i].request, request) == 0){
+    if((cache[i].request != NULL) && (strcmp(cache[i].request, request) == 0)){
       return i;
     }
   }
@@ -142,11 +142,14 @@ char* getContentType(char *mybuf) {
   *                      (See Section 5 in Project description for more files)
   *    Hint:             Need to check the end of the string passed in to check for .html, .jpg, .gif, etc.
   */
+
   char* type;
+  char* extension;
   int j = 0;
-  for(j = 0; j < BUFF_SIZE; j++){
+  for(j = 0; j < strlen(mybuf); j++){
     if (mybuf[j] == '.') {
-      type = &mybuf[j];
+      // type = &mybuf[j];
+      extension = mybuf + j;
       break;
     }
     else {
@@ -154,19 +157,19 @@ char* getContentType(char *mybuf) {
     }
   }
 
-  char* extension = mybuf + j;
+  
 
   if(strcmp(extension, ".html") == 0 || strcmp(extension, ".htm") == 0) {
-    type = "text/html";
+    type = "text/html\0";
   }
   else if(strcmp(extension, ".jpg") == 0) {
-    type = "image/jpeg";
+    type = "image/jpeg\0";
   }
   else if(strcmp(extension, ".gif") == 0) {
-    type = "image/gif";
+    type = "image/gif\0";
   }
   else {
-    type = "text/plain";
+    type = "text/plain\0";
   }
     return type;
 }
@@ -263,11 +266,7 @@ void * dispatch(void *arg) {
     /* TODO (B.IV)
     *    Description:      Add the request into the queue
     */
-    //(0) make filename absolute, not relative 
-    char pwdstorage[1024];
-    getcwd(pwdstorage, 1024);
-    strcat(pwdstorage, fileName);
-    strncpy(fileName, pwdstorage, BUFF_SIZE);
+
 
     //(1) Copy the filename from get_request into allocated memory to put on request queue
     file.request = malloc(strlen(fileName) + 1);
@@ -295,6 +294,7 @@ void * dispatch(void *arg) {
     if(pthread_mutex_unlock(&queue_lock) != 0) {
       perror("unlocking has failed\n");
     }
+  
  }
 
   return NULL;
@@ -304,10 +304,6 @@ void * dispatch(void *arg) {
 // Function to retrieve the request from the queue, process it and then return a result to the client
 void * worker(void *arg) {
   /********************* DO NOT REMOVE SECTION - BOTTOM      *********************/
-
-
-  #pragma GCC diagnostic ignored "-Wunused-variable"      //TODO --> Remove these before submission and fix warnings
-  #pragma GCC diagnostic push                             //TODO --> Remove these before submission and fix warnings
 
 
   // Helpful/Suggested Declarations
@@ -345,6 +341,7 @@ void * worker(void *arg) {
     curequest--; // curequest always points to open slot above latest filled one. decrementing it will make it point to the full one. 
     fd = req_entries[curequest].fd;
     strncpy(mybuf, req_entries[curequest].request, BUFF_SIZE);
+    num_request = curequest;
     
     //(4) Update the request queue remove index in a circular fashion
     free(req_entries[curequest].request); // this was malloc'd in the dispatch. need to free now that it's being used.  
@@ -378,50 +375,46 @@ void * worker(void *arg) {
     //       -put the entry in the cache,
     //       -return result to the user.
 
+    // make filename absolute, not relative 
+    char fileName[1024];
+    getcwd(fileName, 1024);
+    strcat(fileName, mybuf);
 
     pthread_mutex_lock(&cache_lock);
     int cache_index = getCacheIndex(mybuf);
 
-    int requestfd = open(mybuf, O_RDONLY);
-    struct stat file;
-    fstat(requestfd, &file);
-    void *cacheToBuffer = malloc(file.st_size);
-
     //If request in not in cache, get from disk
     if (cache_index == INVALID) {
       cache_hit = false;
-      pthread_mutex_unlock(&cache_lock);
+      int requestfd = open(fileName, O_RDONLY);
+      struct stat file;
+      fstat(requestfd, &file);
+      filesize = file.st_size;
 
-      void *cache_memory = malloc(file.st_size);
-      // for (int i = 0; i < file.st_size; i++) {
-      //     file_buffer[i] = '/0'; 
-      // }
-      // may or may not need to initialize
+      memory = malloc(filesize);
 
-      pthread_mutex_lock(&cache_lock);
-      printf("mybuf %s \n", mybuf);
-      printf("requestfd %d \n", requestfd);
-      if ((readFromDisk(requestfd, mybuf, &memory) == INVALID)) {
-        perror("failed to read from disk");
+      if ((readFromDisk(requestfd, fileName, &memory) == INVALID)) {
+        perror("failed to read from disk\n");
         return NULL;
       }
-      printf("hey you read from disk\n");
-      addIntoCache(memory, memory, file.st_size);
-
-      pthread_mutex_unlock(&cache_lock);
+      addIntoCache(fileName, memory, filesize);
+      cache_index = getCacheIndex(mybuf);
     }
     //Request is in cache, place in buffer
     else {
       cache_hit = true;
+      filesize = cache[cache_index].len;
+      memory = malloc(filesize);
 
-      //place request into buffer
-      memcpy(cacheToBuffer, mybuf, file.st_size);
+      //file contents into allocated memory
+      memcpy(memory, cache[cache_index].content, filesize);
+      
 
-      pthread_mutex_unlock(&cache_lock);
+      
     }
 
+    pthread_mutex_unlock(&cache_lock);
 
-    
    
     /* TODO (C.IV)
     *    Description:      Log the request into the file and terminal
@@ -430,23 +423,13 @@ void * worker(void *arg) {
     *                      You will need to lock and unlock the logfile to write to it in a thread safe manor
     */
     pthread_mutex_lock(&log_lock);
-
-    char fileName[BUFF_SIZE];
+  
     int currentThreadID = threadID[index];
-    int getRequest;
-    int fileSize = 0;
-    
-    if ((getRequest = get_request(fd, fileName)) != 0) {
-      fprintf(stderr, "Error getting request\n");
-    }
-    else {
-      fileSize = file.st_size;
-    }
 
     // To file
-    LogPrettyPrint(logfile, currentThreadID, getRequest, fd, fileName, fileSize, cache_hit);
+    LogPrettyPrint(logfile, currentThreadID, num_request, fd, mybuf, filesize, cache_hit);
     // To terminal
-    LogPrettyPrint(NULL, currentThreadID, getRequest, fd, fileName, fileSize, cache_hit);
+    LogPrettyPrint(NULL, currentThreadID, num_request, fd, mybuf, filesize, cache_hit);
 
     pthread_mutex_unlock(&log_lock);
 
@@ -456,10 +439,14 @@ void * worker(void *arg) {
     *    Utility Function: (1) int return_result(int fd, char *content_type, char *buf, int numbytes); //look in utils.h 
     *                      (2) int return_error(int fd, char *buf); //look in utils.h 
     */
-    if (return_result(fd, getContentType(mybuf), mybuf, file.st_size) != 0)
-      return_error(fd, mybuf);
+    char *typereturn;
+    typereturn = getContentType(mybuf);
 
-    free(cacheToBuffer);
+    if (return_result(fd, typereturn, memory, filesize) != 0) {
+      return_error(fd, mybuf);
+    }
+
+    free(memory);
   }
   return NULL;
 }
