@@ -26,7 +26,8 @@ int curequest= 0;                               //[multiple funct]  --> How will
 
 pthread_t worker_thread[MAX_THREADS];           //[multiple funct]  --> How will you track the p_thread's that you create for workers?
 pthread_t dispatcher_thread[MAX_THREADS];       //[multiple funct]  --> How will you track the p_thread's that you create for dispatchers?
-int threadID[MAX_THREADS];                      //[multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
+int worker_threadID[MAX_THREADS];                      //[multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
+int dispatcher_threadID[MAX_THREADS];                      //[multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
 
 
 pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;        //What kind of locks will you need to make everything thread safe? [Hint you need multiple]
@@ -218,6 +219,17 @@ int readFromDisk(int fd, char *mybuf, void **memory) {
     return fileSize;
 }
 
+// function to print out contents of cache for debugging purposes
+void cachePrintDebug() {
+  for (int i = 0; i < cache_len; i++){
+    printf("%d", i);
+    if (cache[i].content == NULL)
+      printf(" | content NULL | ");
+    else
+      printf(" | content pres | ");
+    printf("%s \n", cache->request);
+  }
+}
 /**********************************************************************************/
 
 // Function to receive the path request from the client and add to the queue
@@ -233,7 +245,7 @@ void * dispatch(void *arg) {
   index = * (int*)arg;
   request_t file;
 
-  //fprintf(stderr, "")
+  printf("Dispatch entered, arg = %d \n", index);
 
   while (1) {
     /* TODO (FOR INTERMEDIATE SUBMISSION)
@@ -271,6 +283,9 @@ void * dispatch(void *arg) {
 
     //(1) Copy the filename from get_request into allocated memory to put on request queue
     file.request = malloc(strlen(fileName) + 1);
+    if (file.request == NULL) {
+      perror("file request allocation has failed \n");
+    } 
     strncpy(file.request, fileName, BUFF_SIZE);
       
 
@@ -322,7 +337,8 @@ void * worker(void *arg) {
   */
   int index = -1;
   index = * (int*)arg;
-
+  printf("Worker entered, arg = %d \n", index);
+  
   while (1) {
     /* TODO (C.II)
     *    Description:      Get the request from the queue and do as follows
@@ -377,28 +393,34 @@ void * worker(void *arg) {
     //       -return result to the user.
 
     // make filename absolute, not relative 
-    char fileName[1024];
-    getcwd(fileName, 1024);
-    strcat(fileName, mybuf);
+    char absFilepath[1024];
+    getcwd(absFilepath, 1024);
+    strcat(absFilepath, mybuf);
 
     pthread_mutex_lock(&cache_lock);
-    int cache_index = getCacheIndex(mybuf);
-
+    int cache_index = getCacheIndex(absFilepath);
+    num_request ++;
+    printf("mybuf: %s \n", mybuf);
+    printf("cache index: %d \n", cache_index);
+    cachePrintDebug();
     //If request in not in cache, get from disk
     if (cache_index == INVALID) {
       cache_hit = false;
-      int requestfd = open(fileName, O_RDONLY);
+      int requestfd = open(absFilepath, O_RDONLY);
       struct stat file;
       fstat(requestfd, &file);
       filesize = file.st_size;
 
       memory = malloc(filesize);
+      if (memory == NULL) {
+        perror("memory failed to allocate \n");
+      }
 
-      if ((readFromDisk(requestfd, fileName, &memory) == INVALID)) {
+      if ((readFromDisk(requestfd, absFilepath, &memory) == INVALID)) {
         perror("failed to read from disk\n");
         return NULL;
       }
-      addIntoCache(fileName, memory, filesize);
+      addIntoCache(absFilepath, memory, filesize);
       cache_index = getCacheIndex(mybuf);
     }
     //Request is in cache, place in buffer
@@ -409,9 +431,7 @@ void * worker(void *arg) {
 
       //file contents into allocated memory
       memcpy(memory, cache[cache_index].content, filesize);
-      
 
-      
     }
 
     pthread_mutex_unlock(&cache_lock);
@@ -424,8 +444,7 @@ void * worker(void *arg) {
     *                      You will need fileNameto lock and unlock the logfile to write to it in a thread safe manor
     */
     pthread_mutex_lock(&log_lock);
-  
-    int currentThreadID = threadID[index];
+    int currentThreadID = worker_threadID[index];
 
     // To file
     LogPrettyPrint(logfile, currentThreadID, num_request, fd, mybuf, filesize, cache_hit);
@@ -569,8 +588,8 @@ int main(int argc, char **argv) {
   */
   // Create worker thread pool
   for(int i = 0; i < num_worker; i++) {
-    threadID[i] = i; 
-    if(pthread_create(&(worker_thread[i]), NULL, worker, (void *) &threadID[i] )){
+    worker_threadID[i] = i; 
+    if(pthread_create(&(worker_thread[i]), NULL, worker, (void *) &worker_threadID[i] )){
       printf("Thread %d failed to create\n", i);
       continue;
     }
@@ -578,11 +597,11 @@ int main(int argc, char **argv) {
 
   // Create dispatch thread pool
   for (int i = 0; i < num_dispatcher; i++) {
-    if(pthread_create(&(dispatcher_thread[i]), NULL, dispatch, (void *) &threadID[i] )) 
+    dispatcher_threadID[i] = i;
+    if(pthread_create(&(dispatcher_thread[i]), NULL, dispatch, (void *) &dispatcher_threadID[i] )) {
       printf("Thread %d failed to create\n", i);
-
-    //Storing thread ID
-    threadID[num_worker + i] = pthread_self();
+      continue;
+    }
   }
 
 
