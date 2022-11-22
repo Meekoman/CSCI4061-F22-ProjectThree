@@ -258,6 +258,7 @@ void * dispatch(void *arg) {
       printf("ERROR: Failed to get request.\n");
       continue;
     }
+    fprintf(stderr, "fileName: %s\n", fileName);
 
     fprintf(stderr, "Dispatcher Received Request: fd[%d] request[%s]\n", file.fd, fileName);
     /* TODO (B.IV)
@@ -406,8 +407,14 @@ void * worker(void *arg) {
         return NULL;
       }
       printf("hey you read from disk\n");
-      addIntoCache(memory, memory, file.st_size);
+      addIntoCache(&mybuf, memory, file.st_size);
+      
+      memcpy(cacheToBuffer, memory, file.st_size);
+      fprintf(stderr, "strcpy, cacheToBuffer: %p\n", cacheToBuffer);
+      fprintf(stderr, "memory pointer: %p\n", memory);
+      fprintf(stderr, "file size: %d\n", file.st_size);
 
+      
       pthread_mutex_unlock(&cache_lock);
     }
     //Request is in cache, place in buffer
@@ -415,38 +422,27 @@ void * worker(void *arg) {
       cache_hit = true;
 
       //place request into buffer
-      memcpy(cacheToBuffer, mybuf, file.st_size);
+      memcpy(cacheToBuffer, memory, file.st_size);
+      printf("memcpy, cacheToBuffer: %p\n", cacheToBuffer);
 
       pthread_mutex_unlock(&cache_lock);
     }
 
 
-    
-   
     /* TODO (C.IV)
     *    Description:      Log the request into the file and terminal
     *    Utility Function: LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, int file_descriptor, char* request_str, int num_bytes_or_error, bool cache_hit);
     *    Hint:             Call LogPrettyPrint with to_write = NULL which will print to the terminal
-    *                      You will need to lock and unlock the logfile to write to it in a thread safe manor
+    *                      You will need fileNameto lock and unlock the logfile to write to it in a thread safe manor
     */
     pthread_mutex_lock(&log_lock);
 
-    char fileName[BUFF_SIZE];
-    int currentThreadID = threadID[index];
-    int getRequest;
-    int fileSize = 0;
-    
-    if ((getRequest = get_request(fd, fileName)) != 0) {
-      fprintf(stderr, "Error getting request\n");
-    }
-    else {
-      fileSize = file.st_size;
-    }
+    int fileSize = file.st_size;
 
     // To file
-    LogPrettyPrint(logfile, currentThreadID, getRequest, fd, fileName, fileSize, cache_hit);
+    LogPrettyPrint(logfile, threadID[index], curequest, fd, mybuf, fileSize, cache_hit);
     // To terminal
-    LogPrettyPrint(NULL, currentThreadID, getRequest, fd, fileName, fileSize, cache_hit);
+    LogPrettyPrint(NULL, threadID[index], curequest, fd, mybuf, fileSize, cache_hit);
 
     pthread_mutex_unlock(&log_lock);
 
@@ -496,7 +492,7 @@ int main(int argc, char **argv) {
   cache_len  = atoi(argv[6]);
 
   /* TODO (A.II)
-  *    Description:     Perform error checks on the input arguments
+  *    Description:     Perform error checName: /image/jpg/29.jpgks on the input arguments
   *    Hints:           (1) port: {Should be >= MIN_PORT and <= MAX_PORT} | (2) path: {Consider checking if path exists (or will be caught later)}
   *                     (3) num_dispatcher: {Should be >= 1 and <= MAX_THREADS} | (4) num_workers: {Should be >= 1 and <= MAX_THREADS}
   *                     (5) queue_length: {Should be >= 1 and <= MAX_QUEUE_LEN} | (6) cache_size: {Should be >= 1 and <= MAX_CE}
@@ -557,7 +553,6 @@ int main(int argc, char **argv) {
   */
   if (chdir(path) != 0) {
     fprintf(stderr, "Error changing directoreis\n");
-
   }
 
   /* TODO (A.V)
