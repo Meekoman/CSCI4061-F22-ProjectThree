@@ -5,7 +5,6 @@
  */
 
 #include "server.h"
-#include <sys/stat.h>
 
 #define PERM 0644
 
@@ -190,7 +189,7 @@ int readFromDisk(int fd, char *mybuf, void **memory) {
   *                      What do we do with files after we open them?
   */
   struct stat file;
-  int ret = stat(mybuf + 1, &file);
+  int ret = stat(mybuf, &file);
   if(ret != 0) {
     perror("stat has failed\n");
     return INVALID;
@@ -264,6 +263,11 @@ void * dispatch(void *arg) {
     /* TODO (B.IV)
     *    Description:      Add the request into the queue
     */
+    //(0) make filename absolute, not relative 
+    char pwdstorage[1024];
+    getcwd(pwdstorage, 1024);
+    strcat(pwdstorage, fileName);
+    strncpy(fileName, pwdstorage, BUFF_SIZE);
 
     //(1) Copy the filename from get_request into allocated memory to put on request queue
     file.request = malloc(strlen(fileName) + 1);
@@ -327,6 +331,7 @@ void * worker(void *arg) {
     *    Description:      Get the request from the queue and do as follows
     */
     //(1) Request thread safe access to the request queue by getting the req_queue_mutex lock
+  
     if (pthread_mutex_lock(&queue_lock) != 0 ){
       perror("locking has failed\n");
     }
@@ -340,12 +345,12 @@ void * worker(void *arg) {
     curequest--; // curequest always points to open slot above latest filled one. decrementing it will make it point to the full one. 
     fd = req_entries[curequest].fd;
     strncpy(mybuf, req_entries[curequest].request, BUFF_SIZE);
-
+    
     //(4) Update the request queue remove index in a circular fashion
     free(req_entries[curequest].request); // this was malloc'd in the dispatch. need to free now that it's being used.  
 
     //(5) Check for a path with only a "/" if that is the case add index.html to it
-    if (strcmp(mybuf, "/")) {
+    if ((strcmp(mybuf, "/")) == 0) {
       strcat(mybuf, "index.html");
     }
 
@@ -386,9 +391,6 @@ void * worker(void *arg) {
     if (cache_index == INVALID) {
       cache_hit = false;
       pthread_mutex_unlock(&cache_lock);
-      // TODO: malloc memory for cache to buffer
-
-
 
       void *cache_memory = malloc(file.st_size);
       // for (int i = 0; i < file.st_size; i++) {
@@ -397,11 +399,13 @@ void * worker(void *arg) {
       // may or may not need to initialize
 
       pthread_mutex_lock(&cache_lock);
+      printf("mybuf %s \n", mybuf);
+      printf("requestfd %d \n", requestfd);
       if ((readFromDisk(requestfd, mybuf, &memory) == INVALID)) {
         perror("failed to read from disk");
         return NULL;
       }
-    
+      printf("hey you read from disk\n");
       addIntoCache(memory, memory, file.st_size);
 
       pthread_mutex_unlock(&cache_lock);
@@ -551,9 +555,10 @@ int main(int argc, char **argv) {
   *    Description:      Change the current working directory to server root directory
   *    Hint:             Check for error!
   */
-  if (chdir(path) != 0)
+  if (chdir(path) != 0) {
     fprintf(stderr, "Error changing directoreis\n");
 
+  }
 
   /* TODO (A.V)
   *    Description:      Initialize cache  
