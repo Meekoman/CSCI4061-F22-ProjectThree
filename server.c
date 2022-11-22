@@ -26,11 +26,11 @@ int curequest= 0;                               //[multiple funct]  --> How will
 
 pthread_t worker_thread[MAX_THREADS];           //[multiple funct]  --> How will you track the p_thread's that you create for workers?
 pthread_t dispatcher_thread[MAX_THREADS];       //[multiple funct]  --> How will you track the p_thread's that you create for dispatchers?
-int worker_threadID[MAX_THREADS];                      //[multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
-int dispatcher_threadID[MAX_THREADS];                      //[multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
+int worker_threadID[MAX_THREADS];               //[multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
+int dispatcher_threadID[MAX_THREADS];           //[multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
 
 
-pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;        //What kind of locks will you need to make everything thread safe? [Hint you need multiple]
+pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;    //What kind of locks will you need to make everything thread safe? [Hint you need multiple]
 pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t cache_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t queue_not_full = PTHREAD_COND_INITIALIZER;  //What kind of CVs will you need  (i.e. queue full, queue empty) [Hint you need multiple]
@@ -185,8 +185,6 @@ int readFromDisk(int fd, char *mybuf, void **memory) {
     return INVALID;
   }
 
-  fprintf (stderr,"The requested file path is: %s\n", mybuf);
-
   /* TODO 
   *    Description:      Find the size of the file you need to read, read all of the contents into a memory location and return the file size
   *    Hint:             Using fstat or fseek could be helpful here
@@ -232,6 +230,15 @@ void cachePrintDebug() {
     printf("%s \n", cache[i].request);
   }
 }
+
+void reqQueuePrintDebug() {
+  printf ("----request queue-----\n");
+  printf ("curequest:  %d \n", curequest);
+  for (int i = 0; i < queue_len; i++){
+    printf("%d | %d |", i, req_entries[i].fd);
+    printf(" %s \n", req_entries[i].request);
+  }
+}
 /**********************************************************************************/
 
 // Function to receive the path request from the client and add to the queue
@@ -247,7 +254,7 @@ void * dispatch(void *arg) {
   index = * (int*)arg;
   request_t file;
 
-  printf("Dispatch entered, arg = %d \n", index);
+  fprintf(stderr, "Dispatcher                     [%3d] Started\n", index);
 
   while (1) {
     /* TODO (FOR INTERMEDIATE SUBMISSION)
@@ -263,7 +270,8 @@ void * dispatch(void *arg) {
     *    Description:      Accept client connection
     *    Utility Function: int accept_connection(void) //utils.h => Line 24
     */
-    while((file.fd = accept_connection()) < 0);
+    while((file.fd = accept_connection()) < 0)
+      continue;
 
 
     /* TODO (B.III)
@@ -271,10 +279,13 @@ void * dispatch(void *arg) {
     *    Utility Function: int get_request(int fd, char *filename); //utils.h => Line 41
     */
     char fileName[BUFF_SIZE];
+    fprintf(stderr, "fd is: %d \n", file.fd);
     if((get_request(file.fd, fileName)) != 0){
-      printf("ERROR: Failed to get request.\n");
+      perror("ERROR: Failed to get request.\n");
       continue;
     }
+    perror("get_request done\n ");
+
     fprintf(stderr, "fileName: %s\n", fileName);
 
     fprintf(stderr, "Dispatcher Received Request: fd[%d] request[%s]\n", file.fd, fileName);
@@ -284,6 +295,7 @@ void * dispatch(void *arg) {
 
 
     //(1) Copy the filename from get_request into allocated memory to put on request queue
+    perror("allocating for dispatch");
     file.request = malloc(strlen(fileName) + 1);
     if (file.request == NULL) {
       perror("file request allocation has failed \n");
@@ -303,9 +315,11 @@ void * dispatch(void *arg) {
 
     //(4) Insert the request into the queue
     req_entries[curequest] = file;
+   
     
     //(5) Update the queue index in a circular fashion
     curequest++;
+
 
     //(6) Release the lock on the request queue and signal that the queue is not empty anymore
     pthread_cond_signal(&queue_not_empty);
@@ -339,8 +353,7 @@ void * worker(void *arg) {
   */
   int index = -1;
   index = * (int*)arg;
-  printf("Worker entered, arg = %d \n", index);
-  
+  fprintf(stderr,"Worker                         [%3d] Started \n", index);
   while (1) {
     /* TODO (C.II)
     *    Description:      Get the request from the queue and do as follows
@@ -360,10 +373,12 @@ void * worker(void *arg) {
     curequest--; // curequest always points to open slot above latest filled one. decrementing it will make it point to the full one. 
     fd = req_entries[curequest].fd;
     strncpy(mybuf, req_entries[curequest].request, BUFF_SIZE);
-    num_request = curequest;
+    num_request++;
     
     //(4) Update the request queue remove index in a circular fashion
     free(req_entries[curequest].request); // this was malloc'd in the dispatch. need to free now that it's being used.  
+    req_entries[curequest].request = NULL; // free just removes pointer, does not populate back with null pointer
+    req_entries[curequest].fd = 0;
 
     //(5) Check for a path with only a "/" if that is the case add index.html to it
     if ((strcmp(mybuf, "/")) == 0) {
@@ -401,11 +416,8 @@ void * worker(void *arg) {
 
     pthread_mutex_lock(&cache_lock);
     int cache_index = getCacheIndex(absFilepath);
-    num_request ++;
-    printf("mybuf: %s \n", mybuf);
-    printf("cache index: %d \n", cache_index);
-    cachePrintDebug();
-    //If request in not in cache, get from disk
+
+
     if (cache_index == INVALID) {
       cache_hit = false;
       int requestfd = open(absFilepath, O_RDONLY);
@@ -415,7 +427,7 @@ void * worker(void *arg) {
 
       memory = malloc(filesize);
       if (memory == NULL) {
-        perror("memory failed to allocate \n");
+        perror("Worker failed to allocate memory in cache\n");
       }
 
       if ((readFromDisk(requestfd, absFilepath, &memory) == INVALID)) {
@@ -429,7 +441,9 @@ void * worker(void *arg) {
     else {
       cache_hit = true;
       filesize = cache[cache_index].len;
-      memory = malloc(filesize);
+      if ((memory = malloc(filesize)) == NULL) {
+        perror("Worker failed to allocate memory in cache \n");
+      }
 
       //file contents into allocated memory
       memcpy(memory, cache[cache_index].content, filesize);
@@ -451,6 +465,7 @@ void * worker(void *arg) {
     // To file
     LogPrettyPrint(logfile, currentThreadID, num_request, fd, mybuf, filesize, cache_hit);
     // To terminal
+    printf("|Id___|rq#__|fd___|request_str_____________________|# bytes__|hit___\n");
     LogPrettyPrint(NULL, currentThreadID, num_request, fd, mybuf, filesize, cache_hit);
 
     pthread_mutex_unlock(&log_lock);
@@ -601,7 +616,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < num_dispatcher; i++) {
     dispatcher_threadID[i] = i;
     if(pthread_create(&(dispatcher_thread[i]), NULL, dispatch, (void *) &dispatcher_threadID[i] )) {
-      printf("Thread %d failed to create\n", i);
+      fprintf(stderr,"Thread %d failed to create\n", i);
       continue;
     }
   }
