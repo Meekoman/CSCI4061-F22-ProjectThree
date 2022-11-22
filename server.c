@@ -221,13 +221,15 @@ int readFromDisk(int fd, char *mybuf, void **memory) {
 
 // function to print out contents of cache for debugging purposes
 void cachePrintDebug() {
+  printf("i | content?     | request \n");
+  printf("____________________________\n");
   for (int i = 0; i < cache_len; i++){
     printf("%d", i);
     if (cache[i].content == NULL)
       printf(" | content NULL | ");
     else
       printf(" | content pres | ");
-    printf("%s \n", cache->request);
+    printf("%s \n", cache[i].request);
   }
 }
 /**********************************************************************************/
