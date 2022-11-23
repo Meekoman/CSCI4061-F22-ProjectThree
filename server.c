@@ -158,7 +158,6 @@ char* getContentType(char *mybuf) {
     }
   }
 
-  
 
   if(strcmp(extension, ".html") == 0 || strcmp(extension, ".htm") == 0) {
     type = "text/html\0";
@@ -178,18 +177,11 @@ char* getContentType(char *mybuf) {
 // Function to open and read the file from the disk into the memory. Add necessary arguments as needed
 // Hint: caller must malloc the memory space
 int readFromDisk(int fd, char *mybuf, void **memory) {
-  //    Description: Try and open requested file, return INVALID if you cannot meaning error
-  // FILE *fp;
-  // if((fp = fopen(mybuf, "r")) == NULL){
-  //     fprintf (stderr, "ERROR: Fail to open the file.\n");
-  //   return INVALID;
-  // }
-
-  // /* TODO 
-  // *    Description:      Find the size of the file you need to read, read all of the contents into a memory location and return the file size
-  // *    Hint:             Using fstat or fseek could be helpful here
-  // *                      What do we do with files after we open them?
-  // */
+  /* TODO 
+  *    Description:      Find the size of the file you need to read, read all of the contents into a memory location and return the file size
+  *    Hint:             Using fstat or fseek could be helpful here
+  *                      What do we do with files after we open them?
+  */
 
   int fp;
   if((fp = open(mybuf + 1, O_RDONLY)) == -1){
