@@ -210,7 +210,7 @@ int readFromDisk(int fd, char *mybuf, void **memory) {
   }
 
   if(close(fp)) {
-  fprintf(stderr, "ERROR: Fail to close the file.\n");
+    perror("ERROR: Fail to close the file.\n");
   exit(1);
   }
   return fileSize;
@@ -281,23 +281,16 @@ void * dispatch(void *arg) {
     *    Utility Function: int get_request(int fd, char *filename); //utils.h => Line 41
     */
     char fileName[BUFF_SIZE];
-    fprintf(stderr, "fd is: %d \n", fd);
     if((get_request(fd, fileName)) != 0){
       perror("ERROR: Failed to get request.\n");
       continue;
     }
-    perror("get_request done\n ");
-
-    fprintf(stderr, "fileName: %s\n", fileName);
-
-    fprintf(stderr, "Dispatcher Received Request: fd[%d] request[%s]\n", fd, fileName);
     /* TODO (B.IV)
     *    Description:      Add the request into the queue
     */
 
 
     //(1) Copy the filename from get_request into allocated memory to put on request queue
-    perror("allocating for dispatch");
     char *req = (char *)malloc(strlen(fileName) + 1);
     if (req == NULL) {
       perror("file request allocation has failed \n");
@@ -459,7 +452,6 @@ void * worker(void *arg) {
     // To file
     LogPrettyPrint(logfile, currentThreadID, num_request, fd, mybuf, filesize, cache_hit);
     // To terminal
-    printf("|Id___|rq#__|fd___|request_str_____________________|# bytes__|hit___\n");
     LogPrettyPrint(NULL, currentThreadID, num_request, fd, mybuf, filesize, cache_hit);
 
     if (pthread_mutex_unlock(&log_lock) < 0) {
