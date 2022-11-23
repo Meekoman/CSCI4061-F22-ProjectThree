@@ -56,7 +56,8 @@ int getCacheIndex(char *request){
       return i;
     }
   }
-    return INVALID;
+  
+  return INVALID;
 }
 
 // Function to add the request and its file content into the cache
@@ -88,8 +89,6 @@ void addIntoCache(char *mybuf, char *memory , int memory_size){
 
   cacheIndex++;
   cacheIndex %= cache_len;
-
-  return;
 }
 
 // Function to clear the memory allocated to the cache
@@ -99,6 +98,7 @@ void deleteCache(){
     free(cache[i].request);
     free(cache[i].content);
   }
+
   free(cache);
 }
 
@@ -150,16 +150,16 @@ char* getContentType(char *mybuf) {
   else {
     type = "text/plain\0";
   }
-    return type;
+  
+  return type;
 }
 
 // Function to open and read the file from the disk into the memory. 
 int readFromDisk(int fd, char *mybuf, void **memory) {
 
-
   int fp;
   if((fp = open(mybuf + 1, O_RDONLY)) == -1){
-      fprintf (stderr, "ERROR: Fail to open the file.\n");
+    fprintf (stderr, "ERROR: Fail to open the file.\n");
     return INVALID;
   }
 
@@ -185,10 +185,10 @@ int readFromDisk(int fd, char *mybuf, void **memory) {
 
   if(close(fp)) {
     perror("ERROR: Fail to close the file.\n");
-  exit(1);
+    exit(1);
   }
-  return fileSize;
 
+  return fileSize;
 }
 
 // function to print out contents of cache for debugging purposes
@@ -265,7 +265,6 @@ void * dispatch(void *arg) {
     if(pthread_mutex_unlock(&queue_lock) < 0) {
       perror("Unlocking has failed\n");
     }
-  
  }
 
   return NULL;
@@ -288,13 +287,11 @@ void * worker(void *arg) {
   fprintf(stderr,"Worker                         [%3d] Started \n", index);
   while (1) {
 
-    if (pthread_mutex_lock(&queue_lock) < 0 ){
+    if (pthread_mutex_lock(&queue_lock) < 0 )
       perror("Locking has failed\n");
-    }
 
-    while (curequest == 0) {
+    while (curequest == 0) 
       pthread_cond_wait(&queue_not_empty, &queue_lock);
-    }
 
     fd = req_entries[workerIndex].fd;
     strcpy(mybuf, req_entries[workerIndex].request);
@@ -337,7 +334,6 @@ void * worker(void *arg) {
       addIntoCache(mybuf, memory, filesize);
       cache_index = getCacheIndex(mybuf);
     }
-
     else {
       cache_hit = true;
       filesize = cache[cache_index].len;
@@ -346,35 +342,33 @@ void * worker(void *arg) {
       }
 
       memcpy(memory, cache[cache_index].content, filesize);
-
     }
 
-    if (pthread_mutex_unlock(&cache_lock) < 0) {
+    if (pthread_mutex_unlock(&cache_lock) < 0)
       perror("Failed to unlock cache\n");
-    }
 
-    if (pthread_mutex_lock(&log_lock) < 0) {
+
+    if (pthread_mutex_lock(&log_lock) < 0)
       perror("Locking failed\n");
-    }
+
     int currentThreadID = worker_threadID[index];
 
     LogPrettyPrint(logfile, currentThreadID, num_request, fd, mybuf, filesize, cache_hit);
     LogPrettyPrint(NULL, currentThreadID, num_request, fd, mybuf, filesize, cache_hit);
 
-    if (pthread_mutex_unlock(&log_lock) < 0) {
+    if (pthread_mutex_unlock(&log_lock) < 0)
       perror("Unlocking failed\n");
-    }
 
 
     char *typereturn;
     typereturn = getContentType(mybuf);
 
-    if (return_result(fd, typereturn, memory, filesize) != 0) {
+    if (return_result(fd, typereturn, memory, filesize) != 0)
       return_error(fd, mybuf);
-    }
 
     free(memory);
   }
+
   return NULL;
 }
 
@@ -452,13 +446,11 @@ int main(int argc, char **argv) {
  		exit(-1);
   }
 
-
   if (chdir(path) != 0) {
-    fprintf(stderr, "Error changing directoreis\n");
+    fprintf(stderr, "Error changing directories\n");
   }
 
   initCache();
-
   init(port);
 
 
@@ -491,8 +483,8 @@ int main(int argc, char **argv) {
       printf("ERROR : Fail to join dispatcher thread %d.\n", i);
     }
   }
+
   fprintf(stderr, "SERVER DONE \n");  // will never be reached in SOLUTION
   deleteCache();
   fclose(logfile);
 }
-
